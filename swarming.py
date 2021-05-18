@@ -161,7 +161,7 @@ class Agent:
         delta_v = []
         
         # make the rotation matrix for transforming to the body frame:
-        rot_angle = -self.heading
+        rot_angle = 0.5*np.pi-self.heading
         R = np.zeros([2,2])
         R[0,0] = np.cos(rot_angle)
         R[0,1] = -np.sin(rot_angle)
@@ -183,6 +183,11 @@ class Agent:
                 
                 # convert to body frame:
                 d_agent_body = R.dot(d_agent)
+                d_agent_body = d_agent_body[::-1]
+
+#                print(f'Position agent = {self.x}, {self.y}, position neighbor = {agent.x}, {agent.y}')
+#                print(f'Orientation agent = {self.heading / np.pi} pi')
+#                print(f'Relative position = {d_agent_body[0][0]}, {d_agent_body[1][0]}')
 
                 # relative position to agent:
                 delta_pos.append(d_agent_body)
@@ -194,6 +199,11 @@ class Agent:
                 
                 # convert to body frame:
                 d_agent_body_next = R.dot(d_agent_next)
+                d_agent_body_next = d_agent_body_next[::-1]
+                
+#                print(f'Next relative position = {d_agent_body_next[0]}, {d_agent_body_next[1]}')
+                
+                
                 v_body = d_agent_body_next - d_agent_body 
                 
                 # relative velocity
@@ -215,7 +225,7 @@ class FlockingAgent(Agent):
     def set_command(self):
         
         # sense the neighbors:
-        [neighbors, delta_pos, delta_v] = self.sense_nearest_neighbors(max_range = 1000.0)
+        [neighbors, delta_pos, delta_v] = self.sense_nearest_neighbors(k = 3, max_range = 1000.0)
         n_neighbors = len(neighbors)
         
         if(n_neighbors == 0):
@@ -239,7 +249,7 @@ class FlockingAgent(Agent):
         
         for n in range(n_neighbors):
             d_pos = delta_pos[n]
-            distance = np.sqrt(d_pos[0]*d_pos[0] + d_pos[1]*d_pos[1])
+            distance = np.sqrt(d_pos[0][0]*d_pos[0][0] + d_pos[1][0]*d_pos[1][0])
             
             # separation:
             if distance < avoidance_radius:
@@ -277,12 +287,12 @@ class FlockingAgent(Agent):
         
         # set the new commanded velocity and rate:
         self.command_v = command_velocity
-        self.command_rate = rate_gain * desired_v[1][0]     
+        self.command_rate = -rate_gain * desired_v[1][0]     
 
 if __name__ == "__main__":    
 
     env = Environment(100, 100)
-    for i in range(3):
+    for i in range(20):
         a = FlockingAgent(env)
         env.add_agent(a)
     
@@ -290,6 +300,10 @@ if __name__ == "__main__":
     n_time_steps = 1000
     
     for t in range(n_time_steps):
+        
+        if(t == 100):
+            print('break')
+        
         env.update_agents(dt)
         
         if(np.mod(t, 100) == 0):
