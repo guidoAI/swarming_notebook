@@ -24,7 +24,7 @@ class Environment:
         
     def get_agents(self):
         
-        return agents
+        return self.agents
     
     def add_agent(self, agent):
         
@@ -70,9 +70,14 @@ class Agent:
         self.x = np.random.rand() * environment.width
         self.y = np.random.rand() * environment.height
         self.heading = np.random.rand() * 2 * np.pi
+        
         # zero velocity and commanded velocity:
         self.v = 0.0
         self.command_v = 0.0
+        
+        # also in the inertial frame
+        self.vx = 0.0
+        self.vy = 0.0
         
         # heading rate and commanded rate
         self.rate = 0.0
@@ -113,6 +118,8 @@ class Agent:
         
     def set_command(self):
         
+        [neighbors, delta_pos, delta_v] = self.sense_nearest_neighbors()
+        
         # standard function sets rate and velocity to zero - has to be overloaded
         self.command_v = 0.0
         self.command_rate = 0.0
@@ -139,7 +146,7 @@ class Agent:
             distances[a] = np.sqrt(dx*dx + dy*dy)
             
         # get the k closest agents:
-        closest_agents = np.argsort(distances)
+        closest_agents = np.argsort(distances, axis=0)
         n_closest = len(closest_agents)
         # we start from 1, since the closest agent is the agent itself:
         if len(closest_agents) > k:
@@ -149,7 +156,7 @@ class Agent:
         n_closest = len(closest_agents)
         
         # add the right agents
-        neighbors = closest_agents
+        neighbors = []
         delta_pos = []
         delta_v = []
         
@@ -161,11 +168,13 @@ class Agent:
         R[1,0] = np.sin(rot_angle)
         R[1,1] = np.cos(rot_angle)
 
-        R = np.zeros([2,2])
         for n in range(n_closest):
-            agent = closest_agents[n]
-            if(distances(agent) < max_range):
+            a = closest_agents[n][0]
+            agent = agents[a]
+            if(distances[a] < max_range):
                 # The agent is in range:
+                
+                neighbors.append(a)
                 
                 # dx and dy in inertial frame
                 d_agent = np.zeros([2,1])
@@ -191,33 +200,100 @@ class Agent:
                 delta_v.append(v_body)
 
         return [neighbors, delta_pos, delta_v]
+
+class RandomAgent(Agent):
+    
+    def set_command(self):
         
+        # draw velocity and rate from a uniform distribution:
+        self.command_v = np.random.rand(1)
+        self.command_rate = 0.1 * np.pi * (np.random.rand(1) * 2 - 1)
+        
+
+class FlockingAgent(Agent):
+    
+    def set_command(self):
+        
+        # sense the neighbors:
+        [neighbors, delta_pos, delta_v] = self.sense_nearest_neighbors(max_range = 1000.0)
+        n_neighbors = len(neighbors)
+        
+        if(n_neighbors == 0):
+            # no neighbors, keep going in the same direction:
+            self.command_rate = 0.0
+            return
+        
+        # parameters of the method:
+        avoidance_radius = 6.0
+        w_separation = 0.0
+        w_cohesion = 10.0
+        w_alignment = 0.0
+        command_velocity = 0.25
+        rate_gain = 0.10
+        
+        # initializing variables:
+        avoidance_vector = np.zeros([2,1])
+        avoidance = False
+        flock_centroid = np.zeros([2,1])
+        delta_v_align = np.zeros([2,1])
+        
+        for n in range(n_neighbors):
+            d_pos = delta_pos[n]
+            distance = np.sqrt(d_pos[0]*d_pos[0] + d_pos[1]*d_pos[1])
+            
+            # separation:
+            if distance < avoidance_radius:
+                avoidance = True
+                avoidance_vector -= d_pos / np.linalg.norm(d_pos)
+        
+            # cohesion:
+            flock_centroid += d_pos / np.linalg.norm(d_pos)
+            
+            # alignment:
+            d_vel = delta_v[n]
+            delta_v_align += d_vel
+        
+        if(avoidance):
+            # normalize the avoidance vector:
+            avoidance_vector /= np.linalg.norm(avoidance_vector)
+        else:
+            avoidance_vector = np.zeros([2,1])
+        
+        # cohesion vector:
+        flock_centroid /= (n_neighbors + 1) # +1 because the agent itself counts for the centroid
+        flock_centroid /= np.linalg.norm(flock_centroid)
+        
+        # alignment:
+        v_inertial = np.zeros([2,1])
+        v_inertial[0] = self.vx
+        v_inertial[1] = self.vy
+        v_alignment = v_inertial + delta_v_align / n_neighbors
+        
+        desired_v = w_separation * avoidance_vector + w_cohesion * flock_centroid + w_alignment * v_alignment 
+        norm_dv = np.linalg.norm(desired_v)
+        if norm_dv > 0.0001:
+            desired_v /= norm_dv
+        desired_v *= command_velocity
+        
+        # set the new commanded velocity and rate:
+        self.command_v = command_velocity
+        self.command_rate = rate_gain * desired_v[1][0]     
 
 if __name__ == "__main__":    
 
     env = Environment(100, 100)
-    for i in range(10):
-        a = Agent(env)
+    for i in range(3):
+        a = FlockingAgent(env)
         env.add_agent(a)
     
     dt = 0.1
     n_time_steps = 1000
     
-    figure_handle = plt.figure('swarming')
-    ax = figure_handle.add_subplot(111)
-    plt.ion()
-    figure_handle.canvas.draw()
-    
-    plt.figure()
     for t in range(n_time_steps):
         env.update_agents(dt)
         
-        plt.figure('mountain_car')
-        ax.clear()
-        env.draw()
-        display.clear_output(wait=True)
-        display.display(plt.gcf())
-        time.sleep(dt)
-        
+        if(np.mod(t, 100) == 0):
+            env.draw()
+            
 
 
