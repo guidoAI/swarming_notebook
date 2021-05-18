@@ -53,8 +53,10 @@ class Environment:
         for a in self.agents:
             a.draw(ax)
         
+        ax.axis('equal')
         plt.xlim([-1, self.width+1])
         plt.ylim([-1, self.height+1])
+        
         
         display.clear_output(wait=True)
         display.display(plt.gcf())
