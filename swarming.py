@@ -51,10 +51,10 @@ class Environment:
         plt.plot([0, self.width, self.width, 0, 0], [0, 0, self.height, self.height, 0], 'k-')
         
         for a in self.agents:
-            a.draw()
+            a.draw(ax)
         
-        #plt.xlim([-1, self.width+1])
-        #plt.ylim([-1, self.height+1])
+        plt.xlim([-1, self.width+1])
+        plt.ylim([-1, self.height+1])
         
         display.clear_output(wait=True)
         display.display(plt.gcf())
@@ -86,6 +86,8 @@ class Agent:
         # how quickly a command is satisfied depends on these low-pass factors:
         self.v_factor = 0.9
         self.rate_factor = 0.9
+        
+        self.max_range = 20.0
         
     
     def update(self, dt):
@@ -158,12 +160,16 @@ class Agent:
                 self.command_rate = 0.30
         
     
-    def draw(self, time_step = 3):
+    def draw(self, ax, time_step = 3):
         
         plt.plot(self.x, self.y, 'bo')
         plt.plot([self.x, self.x + self.vx * time_step], [self.y, self.y + self.vy * time_step], 'r')
+        C = plt.Circle((self.x, self.y), self.max_range, edgecolor='k', facecolor=None, linestyle='--', fill=False) # 
+        ax.add_patch(C)
     
     def sense_nearest_neighbors(self, k = 3, max_range = 20):
+        
+        self.max_range = max_range
         
         agents = self.environment.get_agents()
         n_agents = len(agents)
@@ -259,7 +265,7 @@ class FlockingAgent(Agent):
     def set_command(self):
         
         # sense the neighbors:
-        [neighbors, delta_pos, delta_v] = self.sense_nearest_neighbors(k = 10, max_range = 1000.0)
+        [neighbors, delta_pos, delta_v] = self.sense_nearest_neighbors(k = 10, max_range = 100.0)
         n_neighbors = len(neighbors)
         
         if(n_neighbors == 0):
@@ -321,7 +327,9 @@ class FlockingAgent(Agent):
         
         # set the new commanded velocity and rate:
         self.command_v = command_velocity
-        self.command_rate = -rate_gain * desired_v[1][0]     
+        self.command_rate = -rate_gain * desired_v[1][0]   
+        
+        self.avoid_wall()
 
 if __name__ == "__main__":    
 
