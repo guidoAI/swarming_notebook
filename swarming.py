@@ -53,8 +53,8 @@ class Environment:
         for a in self.agents:
             a.draw()
         
-        plt.xlim([-1, self.width+1])
-        plt.ylim([-1, self.height+1])
+        #plt.xlim([-1, self.width+1])
+        #plt.ylim([-1, self.height+1])
         
         display.clear_output(wait=True)
         display.display(plt.gcf())
@@ -123,7 +123,41 @@ class Agent:
         # standard function sets rate and velocity to zero - has to be overloaded
         self.command_v = 0.0
         self.command_rate = 0.0
+    
+    def avoid_wall(self, avoid_threshold = 10.0):
         
+        rot_angle = 0.5*np.pi-self.heading
+        R = np.zeros([2,2])
+        R[0,0] = np.cos(rot_angle)
+        R[0,1] = -np.sin(rot_angle)
+        R[1,0] = np.sin(rot_angle)
+        R[1,1] = np.cos(rot_angle)
+        
+        avoid = False
+        global_des = np.zeros([2,1])
+        if self.x < avoid_threshold:
+            global_des[0] = self.v
+            avoid = True
+        elif self.x > self.environment.width - avoid_threshold:
+            global_des[0] = -self.v
+            avoid = True
+        
+        if self.y < avoid_threshold:
+            global_des[1] = self.v
+            avoid = True
+        elif self.y > self.environment.width - avoid_threshold:
+            global_des[1] = -self.v
+            avoid = True
+        
+        if(avoid):
+            body_des = R.dot(global_des)
+            body_des = body_des[::-1]
+            if body_des[1][0] > 0:
+                self.command_rate = -0.30
+            else:
+                self.command_rate = 0.30
+        
+    
     def draw(self, time_step = 3):
         
         plt.plot(self.x, self.y, 'bo')
@@ -225,7 +259,7 @@ class FlockingAgent(Agent):
     def set_command(self):
         
         # sense the neighbors:
-        [neighbors, delta_pos, delta_v] = self.sense_nearest_neighbors(k = 3, max_range = 1000.0)
+        [neighbors, delta_pos, delta_v] = self.sense_nearest_neighbors(k = 10, max_range = 1000.0)
         n_neighbors = len(neighbors)
         
         if(n_neighbors == 0):
@@ -234,10 +268,10 @@ class FlockingAgent(Agent):
             return
         
         # parameters of the method:
-        avoidance_radius = 6.0
+        avoidance_radius = 10.0
         w_separation = 0.0
-        w_cohesion = 10.0
-        w_alignment = 0.0
+        w_cohesion = 0.0
+        w_alignment = 20.0
         command_velocity = 0.25
         rate_gain = 0.10
         
@@ -274,10 +308,10 @@ class FlockingAgent(Agent):
         flock_centroid /= np.linalg.norm(flock_centroid)
         
         # alignment:
-        v_inertial = np.zeros([2,1])
-        v_inertial[0] = self.vx
-        v_inertial[1] = self.vy
-        v_alignment = v_inertial + delta_v_align / n_neighbors
+        v_body = np.zeros([2,1])
+        v_body[0] = self.v
+        v_body[1] = 0
+        v_alignment = v_body + delta_v_align / n_neighbors
         
         desired_v = w_separation * avoidance_vector + w_cohesion * flock_centroid + w_alignment * v_alignment 
         norm_dv = np.linalg.norm(desired_v)
@@ -292,7 +326,7 @@ class FlockingAgent(Agent):
 if __name__ == "__main__":    
 
     env = Environment(100, 100)
-    for i in range(20):
+    for i in range(10):
         a = FlockingAgent(env)
         env.add_agent(a)
     
@@ -300,9 +334,6 @@ if __name__ == "__main__":
     n_time_steps = 1000
     
     for t in range(n_time_steps):
-        
-        if(t == 100):
-            print('break')
         
         env.update_agents(dt)
         
