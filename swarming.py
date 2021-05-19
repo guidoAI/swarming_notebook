@@ -84,6 +84,7 @@ class Agent:
         # heading rate and commanded rate
         self.rate = 0.0
         self.command_rate = 0.0
+        self.max_rate = np.pi 
         
         # how quickly a command is satisfied depends on these low-pass factors:
         self.v_factor = 0.9
@@ -102,6 +103,10 @@ class Agent:
         self.vx = np.cos(self.heading) * self.v
         self.vy = np.sin(self.heading) * self.v
         self.rate = (1-self.rate_factor) * self.rate + self.rate_factor * self.command_rate
+        if(self.rate < -self.max_rate):
+            self.rate = -self.max_rate
+        elif(self.rate > self.max_rate):
+            self.rate = self.max_rate
         
         # update position and heading
         self.x += dt * self.vx
