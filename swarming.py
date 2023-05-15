@@ -263,8 +263,8 @@ class RandomAgent(Agent):
     def set_command(self):
         
         # draw velocity and rate from a uniform distribution:
-        self.command_v = np.random.rand(1)
-        self.command_rate = 0.1 * np.pi * (np.random.rand(1) * 2 - 1)
+        self.command_v = np.random.rand(1)[0]
+        self.command_rate = 0.1 * np.pi * (np.random.rand(1)[0] * 2 - 1)
         
 
 class FlockingAgent(Agent):
@@ -342,7 +342,8 @@ if __name__ == "__main__":
 
     env = Environment(100, 100)
     for i in range(10):
-        a = FlockingAgent(env)
+        a = RandomAgent(env)
+        #a = FlockingAgent(env)
         env.add_agent(a)
     
     dt = 0.1
